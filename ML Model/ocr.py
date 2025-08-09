@@ -110,26 +110,93 @@
 
 
 
+# import easyocr
+# import re
+# import os
+# import cv2
+# import numpy as np
+
+
+# # Load the full image
+# image_path = r"E:\Projects\skepta\Skepta\ML Model\captcha.png"
+# image = cv2.imread(image_path)
+
+# # Set number of rows and columns (for 9 cells, 3x3)
+# rows, cols = 3, 3
+# height, width = image.shape[:2]
+# cell_h, cell_w = height // rows, width // cols
+
+# # Initialize OCR reader
+# reader = easyocr.Reader(['en'], gpu=False)
+
+# # Loop over cells
+# for row in range(rows):
+#     for col in range(cols):
+#         idx = row * cols + col + 1
+#         x1, y1 = col * cell_w, row * cell_h
+#         x2, y2 = x1 + cell_w, y1 + cell_h
+#         cell = image[y1:y2, x1:x2]
+
+#         # OCR on the cell
+#         results = reader.readtext(cell)
+
+#         # Extract numeric results
+#         numbers_only = [
+#             (text, prob)
+#             for (bbox, text, prob) in results
+#             if re.fullmatch(r'\d+(\.\d+)?', text)
+#         ]
+
+#         print(f"📦 Region {idx}:")
+#         if numbers_only:
+#             for num, prob in numbers_only:
+#                 print(f"  ➜ Number: {num} (Confidence: {prob:.2f})")
+#         else:
+#             print("  ❌ No numeric text detected.\n")
+
+
+
+
+
+
+
+
+
+
+
+
 import easyocr
 import re
-import os
 import cv2
 import numpy as np
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# Load image
+image_path = r"E:\Projects\skepta\Skepta\ML Model\captcha.png"
+image = cv2.imread(image_path)
 
-# Load the full image
-image = cv2.imread("body.png")
+# Initialize OCR
+reader = easyocr.Reader(['en'], gpu=False)
 
-# Set number of rows and columns (for 9 cells, 3x3)
+# --- Step 1: Detect target number ---
+# Detect only from top strip of the image (full width, small height)
+header_h = int(image.shape[0] * 0.12)  # small strip at top
+header_img = image[:header_h, :]
+
+header_results = reader.readtext(header_img)
+target_number = None
+for (_, text, _) in header_results:
+    match = re.search(r'\b\d+\b', text)
+    if match:
+        target_number = match.group()
+        break
+
+print(f"🎯 Target number: {target_number}")
+
+# --- Step 2: Split into 3x3 grid like your original code ---
 rows, cols = 3, 3
 height, width = image.shape[:2]
 cell_h, cell_w = height // rows, width // cols
 
-# Initialize OCR reader
-reader = easyocr.Reader(['en'], gpu=False)
-
-# Loop over cells
 for row in range(rows):
     for col in range(cols):
         idx = row * cols + col + 1
@@ -137,10 +204,8 @@ for row in range(rows):
         x2, y2 = x1 + cell_w, y1 + cell_h
         cell = image[y1:y2, x1:x2]
 
-        # OCR on the cell
         results = reader.readtext(cell)
 
-        # Extract numeric results
         numbers_only = [
             (text, prob)
             for (bbox, text, prob) in results
