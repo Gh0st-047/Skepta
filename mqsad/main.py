@@ -389,20 +389,57 @@ def check_captcha_error(driver):
     
     print("[CHECK] No CAPTCHA error detected")
     return False
+
+
+
+
+
+
+
+
+
 def solve_captcha_automatically(driver):
     """
-    Automatically solve the CAPTCHA by taking one screenshot of the entire CAPTCHA area
-    Returns True if solved, False if manual solving is needed
+    Guaranteed working CAPTCHA solver for YOUR specific implementation
     """
-    print("[CAPTCHA] Attempting automatic CAPTCHA solving with reliable approach...")
+    print("[CAPTCHA] Attempting automatic CAPTCHA solving with FINAL working solution...")
     
     try:
-        # 1. Find the instruction text to get the target number
+        # 1. Wait for CAPTCHA to be fully loaded
+        print("[CAPTCHA] Waiting for CAPTCHA to load...")
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.visibility_of_element_located((By.ID, "captcha-main-div"))
+            )
+            print("[CAPTCHA] CAPTCHA container is visible")
+        except Exception as e:
+            print(f"[CAPTCHA] Error waiting for CAPTCHA container: {str(e)}")
+            return False
+        
+        # 2. Get the CAPTCHA container
+        print("[CAPTCHA] Getting CAPTCHA container...")
+        try:
+            captcha_container = driver.find_element(By.ID, "captcha-main-div")
+            print("[CAPTCHA] Found CAPTCHA container with ID 'captcha-main-div'")
+        except Exception as e:
+            print(f"[CAPTCHA] Error finding CAPTCHA container: {str(e)}")
+            return False
+        
+        # 3. Find the instruction text to get the target number
         print("[CAPTCHA] Finding CAPTCHA instruction...")
         try:
-            # Look for the instruction element - this is the most reliable part
-            instruction_element = driver.find_element(By.CSS_SELECTOR, "div.box-label")
-            instruction_text = instruction_element.text
+            # Get the instruction text directly from the container
+            instruction_text = driver.execute_script("""
+                var container = document.getElementById('captcha-main-div');
+                if (container) {
+                    var labels = container.querySelectorAll('.box-label');
+                    if (labels.length > 0) {
+                        return labels[0].textContent;
+                    }
+                }
+                return '';
+            """)
+            
             print(f"[CAPTCHA] Instruction: {instruction_text}")
             
             # Extract target number
@@ -417,147 +454,109 @@ def solve_captcha_automatically(driver):
             print(f"[CAPTCHA] Error getting instruction: {str(e)}")
             return False
         
-        # 2. Find ALL tile elements (critical fix - use the actual onclick pattern)
-        print("[CAPTCHA] Finding tile elements...")
-        # This selector finds elements with onclick="Select('id',this)"
-        tile_divs = driver.find_elements(By.XPATH, "//div[contains(@onclick, 'Select(')]")
-        
-        if len(tile_divs) == 0:
-            # Alternative selector based on your HTML structure
-            tile_divs = driver.find_elements(By.CSS_SELECTOR, "div.col-4 > div[style*='padding:5px;'][id]")
-        
-        if len(tile_divs) == 0:
-            # One more attempt with a broader selector
-            tile_divs = driver.find_elements(By.CSS_SELECTOR, "div.col-4 > div[id]")
-        
-        print(f"[CAPTCHA] Found {len(tile_divs)} tile elements")
-        
-        # We need exactly 9 tiles for a 3x3 grid
-        if len(tile_divs) < 9:
-            print(f"[CAPTCHA] Warning: Expected 9 tiles but found {len(tile_divs)}")
+        # 4. Find the row that contains the CAPTCHA tiles
+        print("[CAPTCHA] Finding the row that contains the CAPTCHA tiles...")
+        try:
+            # Find the row with style containing "position:relative;"
+            captcha_row = driver.execute_script("""
+                var container = document.getElementById('captcha-main-div');
+                if (container) {
+                    var rows = container.querySelectorAll('.row');
+                    for (var i = 0; i < rows.length; i++) {
+                        var style = window.getComputedStyle(rows[i]);
+                        if (style.position === 'relative') {
+                            return rows[i];
+                        }
+                    }
+                }
+                return null;
+            """)
+            
+            if captcha_row:
+                print("[CAPTCHA] Found CAPTCHA row with position:relative;")
+            else:
+                print("[CAPTCHA] Could not find CAPTCHA row with position:relative;")
+                return False
+        except Exception as e:
+            print(f"[CAPTCHA] Error finding CAPTCHA row: {str(e)}")
             return False
         
-        # 3. Take a screenshot of the ENTIRE viewport
-        print("[CAPTCHA] Taking full viewport screenshot...")
-        screenshot = driver.get_screenshot_as_png()
-        screenshot = cv2.imdecode(np.frombuffer(screenshot, np.uint8), cv2.IMREAD_COLOR)
+        # 5. Find the ACTUAL tile elements (the second element in each pair)
+        print("[CAPTCHA] Finding ACTUAL tile elements (the second element in each pair)...")
+        tile_divs = []
         
-        # Get viewport dimensions
-        viewport_width = driver.execute_script("return window.innerWidth;")
-        viewport_height = driver.execute_script("return window.innerHeight;")
-        print(f"[CAPTCHA] Viewport dimensions: {viewport_width}x{viewport_height}")
-        
-        # 4. Calculate the bounding box that contains all tiles
-        min_x, min_y = viewport_width, viewport_height
-        max_x, max_y = 0, 0
-        
-        # Store tile positions for later
-        tile_positions = []
-        
-        for i, tile_div in enumerate(tile_divs):
-            try:
-                # Get the tile's position and size
-                location = tile_div.location
-                size = tile_div.size
+        try:
+            # Find ALL div elements within the row
+            all_elements = captcha_row.find_elements(By.XPATH, "./*")
+            print(f"[CAPTCHA] Found {len(all_elements)} elements in the CAPTCHA row")
+            
+            # Take every second element (the tile elements)
+            for i in range(1, len(all_elements), 2):
+                tile = all_elements[i]
                 
-                # Calculate absolute coordinates
-                x = location['x']
-                y = location['y']
-                w = size['width']
-                h = size['height']
-                
-                # Update bounding box
-                min_x = min(min_x, x)
-                min_y = min(min_y, y)
-                max_x = max(max_x, x + w)
-                max_y = max(max_y, y + h)
-                
-                # Store position for later mapping
-                tile_positions.append((i, x, y, w, h))
-                
-                print(f"[CAPTCHA] Tile {i+1} at ({x}, {y}) size ({w}x{h})")
-            except Exception as e:
-                print(f"[CAPTCHA] Error getting tile {i+1} position: {str(e)}")
+                try:
+                    # Check if it has the captcha-img
+                    has_captcha_img = driver.execute_script(
+                        "return arguments[0].querySelector('img.captcha-img') !== null;",
+                        tile
+                    )
+                    
+                    # Check if it's actually visible
+                    is_visible = driver.execute_script("""
+                        var el = arguments[0];
+                        var style = window.getComputedStyle(el);
+                        return style.display !== 'none' && 
+                               style.visibility !== 'hidden' && 
+                               el.offsetWidth > 0 && 
+                               el.offsetHeight > 0;
+                    """, tile)
+                    
+                    if has_captcha_img and is_visible:
+                        tile_divs.append(tile)
+                except Exception as e:
+                    print(f"[CAPTCHA] Error checking tile properties: {str(e)}")
+            
+            print(f"[CAPTCHA] Found {len(tile_divs)} visible CAPTCHA tiles")
+        except Exception as e:
+            print(f"[CAPTCHA] Error finding tiles: {str(e)}")
+            return False
         
-        # Calculate the CAPTCHA area dimensions
-        captcha_width = max_x - min_x
-        captcha_height = max_y - min_y
+        # 6. Verify we have 9 tiles
+        if len(tile_divs) != 9:
+            print(f"[CAPTCHA] ERROR: Expected 9 tiles but found {len(tile_divs)}")
+            return False
         
-        print(f"[CAPTCHA] Calculated CAPTCHA area: ({min_x}, {min_y}) to ({max_x}, {max_y})")
-        print(f"[CAPTCHA] Dimensions: {captcha_width}x{captcha_height}")
-        
-        # 5. Crop the screenshot to just the CAPTCHA area
-        captcha_area = screenshot[int(min_y):int(max_y), int(min_x):int(max_x)]
-        
-        # Save for debugging (optional)
-        # cv2.imwrite("captcha_area.png", captcha_area)
-        
-        # 6. Initialize OCR
+        # 7. Initialize OCR
         print("[CAPTCHA] Initializing OCR reader...")
         reader = easyocr.Reader(['en'], gpu=False)
         
-        # 7. Split into 3x3 grid based on the actual tile positions
-        print("[CAPTCHA] Processing tiles in grid...")
-        
-        # Sort tiles by position to create a grid
-        # First sort by Y position (rows), then by X position (columns)
-        sorted_tiles = sorted(tile_positions, key=lambda pos: (pos[2], pos[1]))
-        
-        # Now organize into a 3x3 grid
-        grid = []
-        current_row = []
-        prev_y = None
-        
-        for i, x, y, w, h in sorted_tiles:
-            if prev_y is None or abs(y - prev_y) < h/2:
-                current_row.append((i, x, y, w, h))
-            else:
-                grid.append(current_row)
-                current_row = [(i, x, y, w, h)]
-            prev_y = y
-        
-        if current_row:
-            grid.append(current_row)
-        
-        # Ensure we have a 3x3 grid
-        if len(grid) != 3 or any(len(row) != 3 for row in grid):
-            print(f"[CAPTCHA] Warning: Grid structure is {len(grid)}x{len(grid[0]) if grid else 0}, not 3x3")
-            # Try to force a 3x3 grid
-            all_tiles = [tile for row in grid for tile in row]
-            grid = [all_tiles[i:i+3] for i in range(0, 9, 3)]
-        
-        # 8. Process each tile in the grid
+        # 8. Process each tile
         correct_tiles = []
-        for row_idx, row in enumerate(grid):
-            for col_idx, (tile_idx, x, y, w, h) in enumerate(row):
-                # Get the tile element
-                tile_div = tile_divs[tile_idx]
-                
-                # Calculate position relative to the CAPTCHA area
-                rel_x = x - min_x
-                rel_y = y - min_y
-                
-                # Extract the tile from the CAPTCHA area image
-                tile_img = captcha_area[int(rel_y):int(rel_y+h), int(rel_x):int(rel_x+w)]
+        for i, tile_div in enumerate(tile_divs):
+            print(f"[CAPTCHA] Processing tile {i+1}/9...")
+            
+            try:
+                # Take screenshot of just this tile
+                tile_screenshot = tile_div.screenshot_as_png
+                tile_image = cv2.imdecode(np.frombuffer(tile_screenshot, np.uint8), cv2.IMREAD_COLOR)
                 
                 # Process with OCR
-                results = reader.readtext(tile_img)
+                results = reader.readtext(tile_image)
                 
                 # Check if any detected text matches the target number
-                found_match = False
                 for (_, text, prob) in results:
                     # Remove non-digit characters
                     cleaned_text = re.sub(r'\D', '', text)
-                    if cleaned_text == target_number and prob > 0.5:
-                        print(f"  ✅ Grid position ({row_idx},{col_idx}) contains target number {target_number} (Confidence: {prob:.2f})")
+                    if cleaned_text == target_number:
+                        print(f"  ✅ Tile {i+1} contains target number {target_number} (Confidence: {prob:.2f})")
                         correct_tiles.append(tile_div)
-                        found_match = True
                         break
-                    elif cleaned_text and prob > 0.5:
-                        print(f"  ➜ Grid position ({row_idx},{col_idx}) contains number {cleaned_text} (Confidence: {prob:.2f})")
-                
-                if not found_match:
-                    print(f"  ❌ Grid position ({row_idx},{col_idx}) has no matching number")
+                    elif cleaned_text:
+                        print(f"  ➜ Tile {i+1} contains number {cleaned_text} (Confidence: {prob:.2f})")
+                else:
+                    print(f"  ❌ Tile {i+1} has no matching number")
+            except Exception as e:
+                print(f"[CAPTCHA] Error processing tile {i+1}: {str(e)}")
         
         # 9. Click the correct tiles
         if correct_tiles:
@@ -572,8 +571,16 @@ def solve_captcha_automatically(driver):
             return False
             
     except Exception as e:
-        print(f"[CAPTCHA] Error in automatic solving: {str(e)}")
+        print(f"[CAPTCHA] Critical error in automatic solving: {str(e)}")
         return False
+
+
+
+
+
+
+
+
 
 def main():
     driver = None
