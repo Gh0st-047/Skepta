@@ -5,7 +5,6 @@ import numpy as np
 import re
 import os
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def split_image(image_path, split_ratio=0.15):
     img = cv2.imread(image_path)
@@ -55,7 +54,7 @@ def extract_grid_numbers(body_img, rows=3, cols=3):
     return numbers
 
 def main():
-    image_path = "captcha.png"  # Or pass via argparse for flexibility
+    image_path = "E:\Projects\skepta\Skepta\ML Model\captcha.png"  # Or pass via argparse for flexibility
     header_img, body_img = split_image(image_path)
 
     print("🔷 Step 1: Extracting target number from header...")

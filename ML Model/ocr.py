@@ -5,19 +5,26 @@
 # import os
 # from pathlib import Path
 
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
 # # Initialize EasyOCR once
 # reader = easyocr.Reader(['en'], gpu=False)
 
 # # Confidence threshold
 # CONFIDENCE_THRESHOLD = 0.95
 
-# def method_1_simple_easyocr(image):
+# def save_preprocessed_image(img, method_name, original_path):
+#     """Save preprocessed image in a method-specific folder."""
+#     output_dir = Path("preprocessed") / method_name
+#     output_dir.mkdir(parents=True, exist_ok=True)
+#     filename = Path(original_path).name
+#     save_path = output_dir / filename
+#     cv2.imwrite(str(save_path), img)
+
+# def method_1_simple_easyocr(image, image_path):
+#     save_preprocessed_image(image, "Simple_EasyOCR", image_path)
 #     results = reader.readtext(image)
 #     return filter_digits(results), results
 
-# def method_2_remove_light_background(image):
+# def method_2_remove_light_background(image, image_path):
 #     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 #     light_bg_mask = cv2.inRange(hsv, (0, 0, 180), (180, 60, 255))
 #     digits_mask = cv2.bitwise_not(light_bg_mask)
@@ -27,10 +34,11 @@
 #     digits_mask = cv2.morphologyEx(digits_mask, cv2.MORPH_CLOSE, kernel)
 
 #     processed = cv2.bitwise_not(digits_mask)
+#     save_preprocessed_image(processed, "Remove_Light_Background", image_path)
 #     results = reader.readtext(processed)
 #     return filter_digits(results), results
 
-# def method_3_adjust_saturation_brightness(image):
+# def method_3_adjust_saturation_brightness(image, image_path):
 #     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 #     h, s, v = cv2.split(hsv)
 
@@ -44,6 +52,7 @@
 
 #     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 #     enhanced = clahe.apply(gray)
+#     save_preprocessed_image(enhanced, "Saturation_Brightness_Adjust", image_path)
 #     results = reader.readtext(enhanced)
 #     return filter_digits(results), results
 
@@ -58,31 +67,42 @@
 #         ("Saturation & Brightness Adjust", method_3_adjust_saturation_brightness)
 #     ]
 
-#     best_candidate = None  # (text, prob)
+#     all_method_results = []  # Store (method_name, text, prob)
 
 #     for method_name, method in methods:
 #         try:
 #             print(f"  Trying method: {method_name}")
-#             valid_results, all_results = method(image)
+#             valid_results, all_results = method(image, image_path)
 
 #             if valid_results:
-#                 print(f"  ✅ Success with {method_name}")
-#                 return [text for (text, prob) in valid_results]
-
-#             for (bbox, text, prob) in all_results:
-#                 if re.fullmatch(r'\d+(\.\d+)?', text):
-#                     if best_candidate is None or prob > best_candidate[1]:
-#                         best_candidate = (text, prob)
+#                 # Pick the highest scoring valid number for this method
+#                 best_text, best_prob = max(valid_results, key=lambda x: x[1])
+#                 all_method_results.append((method_name, best_text, best_prob))
+#             else:
+#                 # If no valid above threshold, still store the best match below threshold
+#                 digit_candidates = [(text, prob) for (bbox, text, prob) in all_results if re.fullmatch(r'\d+(\.\d+)?', text)]
+#                 if digit_candidates:
+#                     best_text, best_prob = max(digit_candidates, key=lambda x: x[1])
+#                     all_method_results.append((method_name, best_text, best_prob))
+#                 else:
+#                     all_method_results.append((method_name, None, 0.0))
 
 #         except Exception as e:
 #             print(f"  ⚠️ Error in {method_name}: {e}")
+#             all_method_results.append((method_name, None, 0.0))
 
-#     if best_candidate:
-#         print(f"  ⚠️ Using fallback (best below threshold: {best_candidate[1]:.2f})")
-#         return [best_candidate[0]]
+#     # Sort by probability (highest first)
+#     all_method_results.sort(key=lambda x: x[2], reverse=True)
 
-#     print("  ❌ No numbers detected.")
-#     return []
+#     # Print top 3 results
+#     print("  📊 Top 3 methods by score:")
+#     for method_name, text, prob in all_method_results[:3]:
+#         if text:
+#             print(f"    {method_name}: {text} (score: {prob:.2f})")
+#         else:
+#             print(f"    {method_name}: No digits found")
+
+#     return [text for (_, text, _) in all_method_results if text]
 
 
 # def run_on_folder(folder_path="split_cells"):
@@ -98,8 +118,7 @@
 #             print("  ➜ No numbers found.")
 
 # # Run the pipeline
-# run_on_folder("split_cells")
-
+# run_on_folder("grid_cells")
 
 
 
