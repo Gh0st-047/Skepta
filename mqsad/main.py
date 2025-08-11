@@ -395,7 +395,7 @@ def check_captcha_error(driver):
 
 
 
-
+   
 
 
 def solve_captcha_automatically(driver):

@@ -1,7 +1,7 @@
 import cv2
 
 # === Step 1: Load the image ===
-image_path = "captcha.png"  # Change to your image path
+image_path = "E:\Projects\skepta\Skepta\ML Model\captcha.png"  # Change to your image path
 img = cv2.imread(image_path)
 
 # === Step 2: Get dimensions ===
