@@ -458,6 +458,7 @@ def main():
         print(f"🎯 Target number detected: {target_number}")
     else:
         print("⚠️ No target number detected.")
+        target_number = None
 
     # Step 4: Split image into 3x3 grid and perform OCR in each cell
     print("Splitting image into 3x3 grid and performing OCR on each cell...")
@@ -465,14 +466,30 @@ def main():
     reader = easyocr.Reader(['en'], gpu=False)
     cell_results = ocr_numbers_from_cells(cells, reader)
 
+    # Build final result array
+    output_array = [target_number]
     for idx, numbers in cell_results:
-        print(f"📦 Region {idx}:")
         if numbers:
-            for num, confidence in numbers:
-                print(f"  ➜ Number: {num} (Confidence: {confidence:.2f})")
+            # Take first detected number in the cell
+            output_array.append(numbers[0][0])
         else:
-            print("  ❌ No numeric text detected.")
+            output_array.append(None)  # or "" if you prefer empty string
+
+    print("✅ Final array:", output_array)
+
 
 
 if __name__ == "__main__":
     main()
+    input("\nPress Enter to exit...")
+
+
+
+
+
+
+
+
+
+
+
