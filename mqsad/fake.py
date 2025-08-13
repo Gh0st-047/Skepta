@@ -124,19 +124,26 @@ def preprocess_cell_image(cell_image):
     # Convert to grayscale
     gray = cv2.cvtColor(cell_image, cv2.COLOR_BGR2GRAY)
     
-    # Apply thresholding to get a binary image
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # Apply adaptive thresholding for better results with varying lighting
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                  cv2.THRESH_BINARY_INV, 11, 2)
     
     # Apply morphological operations to clean up the image
     kernel = np.ones((2,2), np.uint8)
     cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    
+    # Resize to improve OCR accuracy (EasyOCR works better with larger images)
+    height, width = cleaned.shape
+    if height < 100 or width < 100:
+        scale = max(100/height, 100/width)
+        cleaned = cv2.resize(cleaned, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     
     return cleaned
 
 
 def calculate_number_similarity(num1, num2):
     """
-    Calculate similarity between two numbers (0-100%).
+    Calculate similarity between two numbers considering common digit confusions.
     
     Args:
         num1: First number as string
@@ -148,7 +155,28 @@ def calculate_number_similarity(num1, num2):
     if len(num1) != len(num2):
         return 0
     
-    match_count = sum(1 for a, b in zip(num1, num2) if a == b)
+    # Define common digit confusions
+    digit_confusions = {
+        '1': ['7', '4', '9', 'l', 'I'],
+        '4': ['1', '9'],
+        '9': ['4', '1', '0'],
+        '0': ['8', '9'],
+        '8': ['0'],
+        '2': ['3', '5'],
+        '3': ['2', '5', '8'],
+        '5': ['2', '3'],
+        '6': ['5', '8', '0'],
+        '7': ['1', '9'],
+    }
+    
+    match_count = 0
+    for a, b in zip(num1, num2):
+        if a == b:
+            match_count += 1
+        elif a in digit_confusions and b in digit_confusions[a]:
+            # Partial match for confused digits
+            match_count += 0.7
+    
     return (match_count / len(num1)) * 100
 
 
@@ -180,7 +208,7 @@ def ocr_numbers_from_cells(cells: list, reader: easyocr.Reader, target_number: s
             # Remove non-digit characters
             cleaned_text = re.sub(r'\D', '', text)
             
-            if not cleaned_text:
+            if not cleaned_text or len(cleaned_text) != target_len:
                 continue
                 
             # Calculate similarity to target number
@@ -194,15 +222,22 @@ def ocr_numbers_from_cells(cells: list, reader: easyocr.Reader, target_number: s
                     found_match = True
                     break
             
-            # Case 2: Close match with high confidence (allow 1 digit difference)
-            elif len(cleaned_text) == target_len and prob > 0.7 and similarity >= 66.7:
+            # Case 2: Close match with high confidence (allow for digit confusions)
+            elif prob > 0.55 and similarity >= 60.0:
                 print(f"  ⚠️ CLOSE MATCH: Cell {idx+1} has {cleaned_text} (Confidence: {prob:.2f}, {similarity:.1f}% similar to {target_number})")
                 target_cells.append(idx)
                 found_match = True
                 break
             
-            # Case 3: Exact length match with medium confidence
-            elif len(cleaned_text) == target_len and prob > 0.5:
+            # Case 3: Medium match with high confidence (for difficult numbers)
+            elif prob > 0.75 and similarity >= 40.0:
+                print(f"  ⚠️ MEDIUM MATCH: Cell {idx+1} has {cleaned_text} (Confidence: {prob:.2f}, {similarity:.1f}% similar to {target_number})")
+                target_cells.append(idx)
+                found_match = True
+                break
+            
+            # Case 4: Log possible matches for debugging
+            else:
                 print(f"  ➜ Possible match: Cell {idx+1} has {cleaned_text} (Confidence: {prob:.2f}, {similarity:.1f}% similar to {target_number})")
         
         if not found_match and ocr_results:
@@ -227,131 +262,131 @@ def get_captcha_tiles(driver):
         captcha_container = driver.find_element(By.ID, "captcha-main-div")
         print("[CAPTCHA] Found CAPTCHA container with ID 'captcha-main-div'")
         
-        # 2. Find the main div container
+        # 2. Find the row container that holds the CAPTCHA tiles
         try:
-            main_div = captcha_container.find_element(By.CSS_SELECTOR, ".main-div-container")
-            print("[CAPTCHA] Found main div container")
-        except:
-            # Alternative approach if the class name is randomized
-            main_div = driver.execute_script("""
+            # Look for the row with position:relative
+            tiles_row = driver.execute_script("""
                 var container = document.getElementById('captcha-main-div');
                 if (container) {
-                    for (var i = 0; i < container.children.length; i++) {
-                        var child = container.children[i];
-                        if (child.classList && child.classList.contains('col-12')) {
-                            return child;
+                    var rows = container.querySelectorAll('div.row');
+                    for (var i = 0; i < rows.length; i++) {
+                        var style = window.getComputedStyle(rows[i]);
+                        if (style.position === 'relative') {
+                            return rows[i];
                         }
                     }
                 }
                 return null;
             """)
-            print("[CAPTCHA] Found main div container using JavaScript")
-        
-        if not main_div:
-            print("[CAPTCHA] Could not find main div container")
+            
+            if not tiles_row:
+                # Alternative approach if no row has position:relative
+                tiles_row = captcha_container.find_element(By.CSS_SELECTOR, "div.row")
+            
+            print("[CAPTCHA] Found tiles row container")
+        except Exception as e:
+            print(f"[CAPTCHA] Error finding tiles row container: {str(e)}")
             return []
         
-        # 3. Find the row container that holds the CAPTCHA tiles
-        try:
-            # Use a more flexible selector for the row
-            tiles_row = main_div.find_element(By.CSS_SELECTOR, "div.row")
-            print("[CAPTCHA] Found tiles row container using CSS selector")
-        except:
-            try:
-                # Use JavaScript to find the row with position:relative
-                tiles_row = driver.execute_script("""
-                    var mainDiv = arguments[0];
-                    if (mainDiv) {
-                        var rows = mainDiv.querySelectorAll('div.row');
-                        for (var i = 0; i < rows.length; i++) {
-                            var style = window.getComputedStyle(rows[i]);
-                            if (style.position === 'relative') {
-                                return rows[i];
-                            }
-                        }
-                    }
-                    return null;
-                """, main_div)
-                print("[CAPTCHA] Found tiles row container using JavaScript")
-            except Exception as e:
-                print(f"[CAPTCHA] Error finding tiles row container: {str(e)}")
-                return []
-        
-        if not tiles_row:
-            print("[CAPTCHA] Could not find tiles row container")
-            return []
-        
-        # 4. Find all direct children of the row container
+        # 3. Find all direct children of the row container
         all_elements = tiles_row.find_elements(By.XPATH, "./*")
         print(f"[CAPTCHA] Found {len(all_elements)} elements in the CAPTCHA row container")
         
-        # 5. Take every second element starting from index 1 (the tile elements)
+        # 4. Filter for the actual tile elements (div.col-4 with padding:5px and img.captcha-img)
         tile_elements = []
-        for i in range(1, len(all_elements), 2):
-            if i < len(all_elements):
-                tile = all_elements[i]
-                tile_elements.append(tile)
-        
-        print(f"[CAPTCHA] Found {len(tile_elements)} tile elements by position")
-        
-        # 6. Filter for elements that contain the captcha-img
-        filtered_tiles = []
-        for tile in tile_elements:
+        for element in all_elements:
             try:
+                # Check if it has the col-4 class
+                has_col_4 = driver.execute_script(
+                    "return arguments[0].classList.contains('col-4');", 
+                    element
+                )
+                
+                # Check if it has padding:5px in its style
+                has_padding = driver.execute_script(
+                    "return arguments[0].style.padding === '5px';", 
+                    element
+                )
+                
                 # Check if it has the captcha-img
                 has_captcha_img = driver.execute_script(
                     "return arguments[0].querySelector('img.captcha-img') !== null;",
-                    tile
+                    element
                 )
                 
-                if has_captcha_img:
-                    filtered_tiles.append(tile)
+                # Check if it's actually visible
+                is_visible = driver.execute_script("""
+                    var el = arguments[0];
+                    var style = window.getComputedStyle(el);
+                    return style.display !== 'none' && 
+                           style.visibility !== 'hidden' && 
+                           el.offsetWidth > 0 && 
+                           el.offsetHeight > 0;
+                """, element)
+                
+                if has_col_4 and has_padding and has_captcha_img and is_visible:
+                    tile_elements.append(element)
             except Exception as e:
-                print(f"[CAPTCHA] Error checking for captcha-img: {str(e)}")
+                print(f"[CAPTCHA] Error checking tile properties: {str(e)}")
         
-        print(f"[CAPTCHA] Found {len(filtered_tiles)} tiles with captcha-img")
+        print(f"[CAPTCHA] Found {len(tile_elements)} valid CAPTCHA tiles")
         
-        # 7. If we have more than 9 tiles, take the first 9
-        if len(filtered_tiles) > 9:
-            print(f"[CAPTCHA] Taking first 9 tiles (found {len(filtered_tiles)})")
-            filtered_tiles = filtered_tiles[:9]
+        # 5. We should have exactly 9 tiles for a 3x3 grid
+        if len(tile_elements) != 9:
+            print(f"[CAPTCHA] WARNING: Expected 9 tiles but found {len(tile_elements)}")
+            
+            # If we have more than 9, take the first 9
+            if len(tile_elements) > 9:
+                print(f"[CAPTCHA] Taking first 9 tiles (found {len(tile_elements)})")
+                tile_elements = tile_elements[:9]
+            
+            # If we have fewer than 9, try an alternative approach
+            elif len(tile_elements) < 9:
+                print(f"[CAPTCHA] Trying alternative approach to find missing tiles...")
+                
+                # Alternative approach: Find all divs with class containing "col-4" and style with "padding:5px"
+                alt_tiles = driver.find_elements(By.CSS_SELECTOR, "div[class*='col-4'][style*='padding:5px;']")
+                print(f"[CAPTCHA] Found {len(alt_tiles)} elements with col-4 and padding:5px")
+                
+                # Filter for visible elements with captcha-img
+                alt_filtered = []
+                for tile in alt_tiles:
+                    try:
+                        has_captcha_img = driver.execute_script(
+                            "return arguments[0].querySelector('img.captcha-img') !== null;",
+                            tile
+                        )
+                        is_visible = driver.execute_script("""
+                            var el = arguments[0];
+                            var style = window.getComputedStyle(el);
+                            return style.display !== 'none' && 
+                                   style.visibility !== 'hidden' && 
+                                   el.offsetWidth > 0 && 
+                                   el.offsetHeight > 0;
+                        """, tile)
+                        if has_captcha_img and is_visible:
+                            alt_filtered.append(tile)
+                    except:
+                        pass
+                
+                # Sort by position to get the correct order
+                alt_filtered.sort(key=lambda t: (t.location['y'], t.location['x']))
+                
+                print(f"[CAPTCHA] Found {len(alt_filtered)} alternative tiles with captcha-img")
+                
+                if len(alt_filtered) >= 9:
+                    tile_elements = alt_filtered[:9]
+                    print(f"[CAPTCHA] Using alternative tiles (found {len(tile_elements)})")
         
-        # 8. If we have fewer than 9 tiles, try an alternative approach
-        if len(filtered_tiles) < 9:
-            print(f"[CAPTCHA] Warning: Only found {len(filtered_tiles)} tiles, trying alternative approach...")
-            
-            # Alternative approach: Find all divs with style containing "padding:5px;" and img.captcha-img
-            alt_tiles = driver.find_elements(By.CSS_SELECTOR, "div[style*='padding:5px;']")
-            print(f"[CAPTCHA] Found {len(alt_tiles)} elements with padding:5px;")
-            
-            alt_filtered = []
-            for tile in alt_tiles:
-                try:
-                    has_captcha_img = driver.execute_script(
-                        "return arguments[0].querySelector('img.captcha-img') !== null;",
-                        tile
-                    )
-                    if has_captcha_img:
-                        alt_filtered.append(tile)
-                except:
-                    pass
-            
-            # Sort by position to get the correct order
-            alt_filtered.sort(key=lambda t: (t.location['y'], t.location['x']))
-            
-            print(f"[CAPTCHA] Found {len(alt_filtered)} alternative tiles with captcha-img")
-            
-            if len(alt_filtered) >= 9:
-                filtered_tiles = alt_filtered[:9]
-                print(f"[CAPTCHA] Using alternative tiles (found {len(filtered_tiles)})")
-        
-        # 9. Final check - we need exactly 9 tiles
-        if len(filtered_tiles) != 9:
-            print(f"[CAPTCHA] ERROR: Expected 9 tiles but found {len(filtered_tiles)}")
+        # 6. Final check - we need exactly 9 tiles
+        if len(tile_elements) != 9:
+            print(f"[CAPTCHA] ERROR: Expected 9 tiles but found {len(tile_elements)}")
             return []
         
-        print(f"[CAPTCHA] Successfully identified {len(filtered_tiles)} CAPTCHA tiles")
-        return filtered_tiles
+        # 7. Sort tiles by position to ensure correct order (top to bottom, left to right)
+        tile_elements.sort(key=lambda tile: (tile.location['y'], tile.location['x']))
+        print(f"[CAPTCHA] Successfully identified {len(tile_elements)} CAPTCHA tiles in correct order")
+        return tile_elements
             
     except Exception as e:
         print(f"[CAPTCHA] Error getting CAPTCHA tiles: {str(e)}")
@@ -372,9 +407,6 @@ def click_captcha_tiles(driver, tile_elements, cell_indices):
         return
     
     try:
-        # Sort tiles by position to ensure correct order (top to bottom, left to right)
-        tile_elements.sort(key=lambda tile: (tile.location['y'], tile.location['x']))
-        
         # Click the tiles for the specified cell indices
         for idx in cell_indices:
             if 0 <= idx < len(tile_elements):
@@ -412,6 +444,7 @@ def main():
     print("Setting up browser...")
     driver = setup_driver()
     driver.get(url)
+    input("Please complete any initial login steps and press Enter to continue...")
     
     # Wait for CAPTCHA to load
     try:
@@ -502,8 +535,10 @@ def main():
         ]
         if numbers:
             for num, confidence in numbers:
-                status = "✅" if num == target_number else "➜"
-                print(f"  {status} Number: {num} (Confidence: {confidence:.2f})")
+                # Check if this is a match for the target number
+                similarity = calculate_number_similarity(num, target_number)
+                status = "✅" if similarity >= 70.0 else "➜"
+                print(f"  {status} Number: {num} (Confidence: {confidence:.2f}, {similarity:.1f}% similar to {target_number})")
         else:
             print("  ❌ No numeric text detected.")
 
