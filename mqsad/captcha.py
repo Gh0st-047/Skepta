@@ -1,335 +1,215 @@
-# # from PIL import Image
-
-# # # === Settings ===
-# # input_path = "captcha.png"          # Original image
-# # output_path = "captcha_cropped.png" # Cropped image
-
-# # top_percent = 0.20     # Remove 10% from the top
-# # bottom_percent = 0.30  # Remove 15% from the bottom
-# # # =================
-
-# # # Open the image
-# # image = Image.open(input_path)
-# # width, height = image.size
-
-# # # Convert percentages to pixels
-# # top_crop = int(height * top_percent)
-# # bottom_crop = int(height * bottom_percent)
-
-# # # Calculate new crop box (left, top, right, bottom)
-# # new_top = top_crop
-# # new_bottom = height - bottom_crop
-
-# # # Ensure valid crop
-# # if new_bottom <= new_top:
-# #     raise ValueError("Cropping values remove entire image. Adjust percentages.")
-
-# # # Crop and save
-# # cropped_image = image.crop((0, new_top, width, new_bottom))
-# # cropped_image.save(output_path)
-
-# # print(f"Cropped image saved as {output_path}")
-
-
-
-
-
-
-
-
-
-# from selenium import webdriver
-# from selenium.webdriver.common.by import By
-# from PIL import Image
-# import time
-
-# # === Crop Settings ===
-# top_percent = 0.20     # Remove 20% from top
-# bottom_percent = 0.30  # Remove 30% from bottom
-# raw_path = "captcha_raw.png"       # First saved image
-# output_path = "captcha_cropped.png"  # Final cropped image
-# # =====================
-
-# # Start Selenium
-# driver = webdriver.Chrome()
-# driver.get("https://appointment.theitalyvisa.com/Global/account/login")
-
-# time.sleep(2)
-# input("Press Enter after CAPTCHA is visible...")  # Wait for manual load
-
-# # Locate captcha element and save directly to disk
-# captcha_element = driver.find_element(By.XPATH, '//*[@id="captcha-main-div"]')
-# captcha_element.screenshot(raw_path)
-
-# driver.quit()
-
-# # Open saved image with Pillow
-# image = Image.open(raw_path)
-# width, height = image.size
-
-# # Convert percentages to pixels
-# top_crop = int(height * top_percent)
-# bottom_crop = int(height * bottom_percent)
-
-# # Calculate crop box
-# new_top = top_crop
-# new_bottom = height - bottom_crop
-
-# if new_bottom <= new_top:
-#     raise ValueError("Cropping values remove entire image. Adjust percentages.")
-
-# # Crop and save final image
-# cropped_image = image.crop((0, new_top, width, new_bottom))
-# cropped_image.save(output_path)
-
-# print(f"Raw screenshot saved as {raw_path}")
-# print(f"Cropped screenshot saved as {output_path}")
-
-
-
-
-
-
-
-
-# import easyocr
-# import re
-# import cv2
-# import numpy as np
-
-# # Load image
-# image_path = r"E:\Projects\skepta\Skepta\captcha_cropped.png"
-# image = cv2.imread(image_path)
-
-# # Initialize OCR
-# reader = easyocr.Reader(['en'], gpu=False)
-
-# # --- Step 1: Detect target number ---
-# # Detect only from top strip of the image (full width, small height)
-# header_h = int(image.shape[0] * 0.12)  # small strip at top
-# header_img = image[:header_h, :]
-
-# header_results = reader.readtext(header_img)
-# target_number = None
-# for (_, text, _) in header_results:
-#     match = re.search(r'\b\d+\b', text)
-#     if match:
-#         target_number = match.group()
-#         break
-
-# print(f"🎯 Target number: {target_number}")
-
-# # --- Step 2: Split into 3x3 grid like your original code ---
-# rows, cols = 3, 3
-# height, width = image.shape[:2]
-# cell_h, cell_w = height // rows, width // cols
-
-# for row in range(rows):
-#     for col in range(cols):
-#         idx = row * cols + col + 1
-#         x1, y1 = col * cell_w, row * cell_h
-#         x2, y2 = x1 + cell_w, y1 + cell_h
-#         cell = image[y1:y2, x1:x2]
-
-#         results = reader.readtext(cell)
-
-#         numbers_only = [
-#             (text, prob)
-#             for (bbox, text, prob) in results
-#             if re.fullmatch(r'\d+(\.\d+)?', text)
-#         ]
-
-#         print(f"📦 Region {idx}:")
-#         if numbers_only:
-#             for num, prob in numbers_only:
-#                 print(f"  ➜ Number: {num} (Confidence: {prob:.2f})")
-#         else:
-#             print("  ❌ No numeric text detected.\n")
-
-
-
-
-
-
-
-# import cv2
-
-# # === Step 1: Load the image ===
-# image_path = "E:\Projects\skepta\Skepta\ML Model\captcha.png"  # Change to your image path
-# img = cv2.imread(image_path)
-
-# # === Step 2: Get dimensions ===
-# height, width, _ = img.shape
-
-# # === Step 3: Calculate split line ===
-# split_line = int(height * 0.15)
-
-# # === Step 4: Slice image ===
-# header = img[:split_line, :]   # Top 20%
-# body = img[split_line:, :]     # Bottom 80%
-
-# # === Step 5: Save output ===
-# cv2.imwrite("header.png", header)
-# cv2.imwrite("body.png", body)
-
-# print("✅ Saved 'header.png' and 'body.png'")
-
-
-
-
-
-
-
-
-
-
-# import cv2
-# import pytesseract
-# import re
-
-# # === Step 1: Read the header image ===
-# image_path = "header.png"
-# img = cv2.imread(image_path)
-
-# # === Step 2: Convert to grayscale (optional but improves OCR) ===
-# gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-# # === Step 3: OCR with pytesseract ===
-# # Use OCR Engine Mode 3 (default), Page Segmentation Mode 6 (Assume a single uniform block of text)
-# custom_config = r'--oem 3 --psm 6'
-# text = pytesseract.image_to_string(gray, config=custom_config)
-
-# print("Detected text:", text)
-
-# # === Step 4: Extract 3-digit number using regex ===
-# match = re.search(r'\b(\d{3})\b', text)
-# if match:
-#     target_number = match.group(1)
-#     print("✅ Target number:", target_number)
-# else:
-#     print("❌ No 3-digit number found.")
-
-
-
-
-
-
-
-
-
-
-# import easyocr
-# import re
-# import cv2
-# import numpy as np
-
-# # Load image
-# image_path = r"E:\Projects\skepta\Skepta\ML Model\body.png"
-# image = cv2.imread(image_path)
-
-# # Initialize OCR
-# reader = easyocr.Reader(['en'], gpu=False)
-
-# # --- Step 1: Detect target number ---
-# # Detect only from top strip of the image (full width, small height)
-# header_h = int(image.shape[0] * 0.12)  # small strip at top
-# header_img = image[:header_h, :]
-
-# header_results = reader.readtext(header_img)
-# target_number = None
-# for (_, text, _) in header_results:
-#     match = re.search(r'\b\d+\b', text)
-#     if match:
-#         target_number = match.group()
-#         break
-
-# print(f"🎯 Target number: {target_number}")
-
-# # --- Step 2: Split into 3x3 grid like your original code ---
-# rows, cols = 3, 3
-# height, width = image.shape[:2]
-# cell_h, cell_w = height // rows, width // cols
-
-# for row in range(rows):
-#     for col in range(cols):
-#         idx = row * cols + col + 1
-#         x1, y1 = col * cell_w, row * cell_h
-#         x2, y2 = x1 + cell_w, y1 + cell_h
-#         cell = image[y1:y2, x1:x2]
-
-#         results = reader.readtext(cell)
-
-#         numbers_only = [
-#             (text, prob)
-#             for (bbox, text, prob) in results
-#             if re.fullmatch(r'\d+(\.\d+)?', text)
-#         ]
-
-#         print(f"📦 Region {idx}:")
-#         if numbers_only:
-#             for num, prob in numbers_only:
-#                 print(f"  ➜ Number: {num} (Confidence: {prob:.2f})")
-#         else:
-#             print("  ❌ No numeric text detected.\n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import time
 import re
+import random
 from pathlib import Path
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from PIL import Image
 import cv2
 import easyocr
 
+from selenium_stealth import stealth
 
-def capture_captcha_screenshot(url: str, captcha_xpath: str, raw_path: Path, wait_time: int = 2) -> None:
+# ====== USER SETTINGS ======
+user_email = "justarandomemail785@gmail.com"  # Expected email text inside <b>
+case1_coords = [
+    (626, 276), (732, 277), (850, 282),
+    (621, 389), (735, 390), (850, 295),
+    (626, 501), (734, 500), (845, 500)
+]
+case2_coords = []  # TODO: Fill when provided
+# ===========================
+
+def get_viewport_relative_coords(driver, screen_x, screen_y):
+    """Convert screen coordinates to viewport-relative coordinates."""
+    # Get browser window position and size
+    window_rect = driver.execute_script("""
+        return {
+            x: window.screenX,
+            y: window.screenY,
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+    """)
+    
+    print(f"🔍 Browser window position: ({window_rect['x']}, {window_rect['y']})")
+    print(f"📏 Browser window size: {window_rect['width']}x{window_rect['height']}")
+    print(f"📍 Target screen coordinates: ({screen_x}, {screen_y})")
+    
+    # Calculate viewport-relative coordinates
+    viewport_x = screen_x - window_rect['x']
+    viewport_y = screen_y - window_rect['y']
+    
+    print(f"🎯 Viewport-relative coordinates: ({viewport_x}, {viewport_y})")
+    
+    # Check if coordinates are within viewport
+    if viewport_x < 0 or viewport_y < 0:
+        print(f"⚠️ WARNING: Coordinates are outside viewport (negative position)")
+    if viewport_x > window_rect['width'] or viewport_y > window_rect['height']:
+        print(f"⚠️ WARNING: Coordinates are outside viewport (beyond window dimensions)")
+    
+    return viewport_x, viewport_y
+
+
+def human_like_click(driver, screen_x, screen_y):
     """
-    Opens a webpage using Selenium, waits for CAPTCHA to appear, captures its screenshot, and saves it.
-
+    Simulate human-like mouse movement and clicking behavior with proper coordinate handling.
+    
     Args:
-        url (str): URL to open.
-        captcha_xpath (str): XPath of the captcha element.
-        raw_path (Path): Path to save the raw captcha screenshot.
-        wait_time (int): Seconds to wait after page load before asking user to confirm captcha visibility.
+        driver: WebDriver instance
+        screen_x: X coordinate on the screen
+        screen_y: Y coordinate on the screen
     """
-    driver = webdriver.Chrome()
-    driver.get(url)
-    time.sleep(wait_time)
+    try:
+        # Convert screen coordinates to viewport-relative coordinates
+        x, y = get_viewport_relative_coords(driver, screen_x, screen_y)
+        
+        print(f"🖱️ Preparing human-like click at viewport coordinates ({x}, {y})")
+        
+        # Verify coordinates are within reasonable bounds
+        if x < 0 or y < 0 or x > 3000 or y > 3000:
+            print(f"❌ Invalid coordinates detected: ({x}, {y})")
+            return False
+            
+        actions = ActionChains(driver)
+        
+        # Start from a random position on screen (simulates moving mouse from elsewhere)
+        start_x = random.randint(50, 200)
+        start_y = random.randint(50, 200)
+        print(f"⮞ Starting movement from ({start_x}, {start_y})")
+        actions.move_by_offset(start_x, start_y)
+        actions.pause(random.uniform(0.2, 0.5))
+        
+        # Approach the target in multiple steps with randomness
+        num_steps = random.randint(3, 6)
+        print(f"⮞ Creating {num_steps} movement steps to target")
+        
+        for i in range(num_steps):
+            # Calculate progress along the path (using easing function for natural movement)
+            t = (i + 1) / num_steps
+            progress = t * t * (3 - 2 * t)  # Ease-in-out function
+            
+            # Calculate target position with some randomness
+            target_x = int(x * progress)
+            target_y = int(y * progress)
+            
+            # Add random deviation (less as we get closer to target)
+            max_deviation = 15 * (1 - progress)
+            deviation_x = random.uniform(-max_deviation, max_deviation)
+            deviation_y = random.uniform(-max_deviation, max_deviation)
+            
+            # Calculate relative movement from previous position
+            if i == 0:
+                rel_x = target_x + deviation_x
+                rel_y = target_y + deviation_y
+            else:
+                prev_progress = (i / num_steps)
+                prev_x = int(x * prev_progress * (3 - 2 * prev_progress))
+                prev_y = int(y * prev_progress * (3 - 2 * prev_progress))
+                rel_x = (target_x + deviation_x) - prev_x
+                rel_y = (target_y + deviation_y) - prev_y
+            
+            print(f"  Step {i+1}: Moving by ({int(rel_x)}, {int(rel_y)}) with pause {random.uniform(0.05, 0.25):.2f}s")
+            
+            # Move to this position
+            actions.move_by_offset(int(rel_x), int(rel_y))
+            
+            # Vary the speed of movement
+            actions.pause(random.uniform(0.05, 0.25))
+        
+        # Add a tiny jiggle before clicking (30% chance)
+        if random.random() < 0.3:
+            jiggle_x = random.randint(-3, 3)
+            jiggle_y = random.randint(-3, 3)
+            print(f"  ✨ Adding human-like jiggle: ({jiggle_x}, {jiggle_y})")
+            actions.move_by_offset(jiggle_x, jiggle_y)
+            actions.pause(random.uniform(0.05, 0.15))
+            actions.move_by_offset(-jiggle_x, -jiggle_y)
+            actions.pause(random.uniform(0.05, 0.15))
+        
+        # Add small random offset to final click position
+        final_offset_x = random.randint(-5, 5)
+        final_offset_y = random.randint(-5, 5)
+        print(f"  🎯 Final offset: ({final_offset_x}, {final_offset_y})")
+        actions.move_by_offset(final_offset_x, final_offset_y)
+        
+        # Natural click timing with slight variation
+        click_delay = random.uniform(0.05, 0.2)
+        print(f"  ✅ Clicking after {click_delay:.2f}s delay")
+        actions.pause(click_delay)
+        actions.click()
+        
+        # Execute the action sequence
+        print("  ⏩ Executing action sequence...")
+        actions.perform()
+        print("  ✔️ Click completed successfully")
+        
+        # Return to original position
+        actions.move_by_offset(-x, -y)
+        actions.perform()
+        
+        # Random delay after click
+        delay = random.uniform(0.3, 0.8)
+        print(f"  ⏳ Waiting {delay:.2f}s before next action")
+        time.sleep(delay)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ ERROR during human_like_click: {str(e)}")
+        # Try a fallback method - move to center and click
+        try:
+            print("  ⚠️ Attempting fallback click method...")
+            actions = ActionChains(driver)
+            actions.move_to_element_with_offset(driver.find_element(By.TAG_NAME, "body"), x, y)
+            actions.click()
+            actions.perform()
+            print("  ✔️ Fallback click successful")
+            return True
+        except Exception as fallback_error:
+            print(f"  ❌ Fallback click also failed: {str(fallback_error)}")
+            return False
+
+def click_matching_images(driver, coords, matches):
+    """Click on images with coordinates where matches[i] is True, using human-like behavior."""
+    for idx, match in enumerate(matches):
+        if match:
+            x, y = coords[idx]
+            print(f"\n{'='*50}")
+            print(f"🖱️ Attempting to click on coordinates ({x}, {y}) - Index {idx+1}")
+            print(f"{'='*50}")
+            
+            success = human_like_click(driver, x, y)
+            if not success:
+                print(f"❌ Failed to click on coordinates ({x}, {y})")
+                # Optional: add additional recovery steps here
+
+def capture_captcha_screenshot(driver, captcha_xpath: str, raw_path: Path):
+    """Wait for Enter, check <b> text, return case number."""
     input("Press Enter after CAPTCHA is visible...")
 
-    try:
-        captcha_element = driver.find_element(By.XPATH, captcha_xpath)
-        captcha_element.screenshot(str(raw_path))
-    finally:
-        driver.quit()
+    # Read <b> text
+    b_element = driver.find_element(By.XPATH, '//*[@id="captcha-main-div"]/div[1]/div[1]/b')
+    b_text = b_element.text.strip()
+
+    # Case check
+    if b_text.lower() == user_email.lower():
+        print("✅ Case 1 detected.")
+        case_number = 1
+    else:
+        print("✅ Case 2 detected.")
+        case_number = 2
+
+    # Capture captcha screenshot
+    captcha_element = driver.find_element(By.XPATH, captcha_xpath)
+    captcha_element.screenshot(str(raw_path))
+
+    return case_number
 
 
-def crop_image_vertically(
-    input_path: Path, output_path: Path, top_percent: float, bottom_percent: float
-) -> None:
-    """
-    Crops an image vertically by removing a percentage from top and bottom.
-
-    Args:
-        input_path (Path): Path of the image to crop.
-        output_path (Path): Path to save the cropped image.
-        top_percent (float): Percentage to remove from the top (0 < top_percent < 1).
-        bottom_percent (float): Percentage to remove from the bottom (0 < bottom_percent < 1).
-    """
+def crop_image_vertically(input_path: Path, output_path: Path, top_percent: float, bottom_percent: float):
+    """Crop image vertically by removing a percentage from top and bottom."""
     with Image.open(input_path) as img:
         width, height = img.size
         top_crop = int(height * top_percent)
@@ -337,25 +217,15 @@ def crop_image_vertically(
 
         new_top = top_crop
         new_bottom = height - bottom_crop
-
         if new_bottom <= new_top:
-            raise ValueError("Cropping percentages remove entire image. Adjust values.")
+            raise ValueError("Cropping percentages remove entire image.")
 
         cropped = img.crop((0, new_top, width, new_bottom))
         cropped.save(output_path)
 
 
 def extract_target_number_easyocr(image_path: Path, top_strip_ratio: float = 0.12) -> str | None:
-    """
-    Extracts the first detected number from the top strip of an image using EasyOCR.
-
-    Args:
-        image_path (Path): Path to the image.
-        top_strip_ratio (float): Portion of the image height to consider as the top strip.
-
-    Returns:
-        str | None: Extracted target number if found, else None.
-    """
+    """Extract first number from top strip of image."""
     image = cv2.imread(str(image_path))
     if image is None:
         raise FileNotFoundError(f"Image not found: {image_path}")
@@ -370,22 +240,15 @@ def extract_target_number_easyocr(image_path: Path, top_strip_ratio: float = 0.1
     for _, text, _ in results:
         match = re.search(r'\b\d+\b', text)
         if match:
-            return match.group()
+            num = match.group()
+            if len(num) == 4:
+                num = num[1:]  # Remove first digit if 4-digit
+            return num
     return None
 
 
 def split_image_grid(image_path: Path, rows: int, cols: int) -> list:
-    """
-    Splits an image into a grid of sub-images.
-
-    Args:
-        image_path (Path): Path to the image.
-        rows (int): Number of rows.
-        cols (int): Number of columns.
-
-    Returns:
-        list: List of sub-images as numpy arrays.
-    """
+    """Split image into grid cells."""
     image = cv2.imread(str(image_path))
     if image is None:
         raise FileNotFoundError(f"Image not found: {image_path}")
@@ -407,30 +270,27 @@ def split_image_grid(image_path: Path, rows: int, cols: int) -> list:
 
 
 def ocr_numbers_from_cells(cells: list, reader: easyocr.Reader) -> list:
-    """
-    Performs OCR on a list of image cells and extracts numeric text with confidence.
-
-    Args:
-        cells (list): List of image cells (numpy arrays).
-        reader (easyocr.Reader): Initialized EasyOCR reader object.
-
-    Returns:
-        list: List of tuples (cell_index, list of (number_text, confidence))
-    """
-    results_per_cell = []
-    for idx, cell in enumerate(cells, start=1):
+    """OCR on each cell, return number or None."""
+    output = []
+    for cell in cells:
         ocr_results = reader.readtext(cell)
-        numbers = [
-            (text, prob)
-            for (_, text, prob) in ocr_results
-            if re.fullmatch(r'\d+(\.\d+)?', text)
-        ]
-        results_per_cell.append((idx, numbers))
-    return results_per_cell
+        if ocr_results:
+            for (_, text, _) in ocr_results:
+                if re.fullmatch(r'\d+(\.\d+)?', text):
+                    if len(text) == 4:  # Remove first digit if 4-digit
+                        text = text[1:]
+                    output.append(text)
+                    break
+            else:
+                output.append(None)
+        else:
+            output.append(None)
+    return output
+
+
 
 
 def main():
-    # Settings
     url = "https://appointment.theitalyvisa.com/Global/account/login"
     captcha_xpath = '//*[@id="captcha-main-div"]'
 
@@ -440,56 +300,75 @@ def main():
     top_crop_percent = 0.20
     bottom_crop_percent = 0.30
 
-    # Step 1: Capture captcha screenshot using Selenium
-    print("Capturing CAPTCHA screenshot...")
-    capture_captcha_screenshot(url, captcha_xpath, raw_captcha_path)
+    # ==== MOBILE EMULATION + STEALTH (replaces webdriver.Chrome() + set_window_size) ====
+    mobile_emulation = {
+        "deviceMetrics": {"width": 375, "height": 812, "pixelRatio": 3.0},
+        "userAgent": (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 "
+            "Mobile/15E148 Safari/604.1"
+        ),
+    }
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("mobileEmulation", mobile_emulation)
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
 
-    # Step 2: Crop image vertically
-    print("Cropping CAPTCHA image...")
+    driver = webdriver.Chrome(options=options)
+
+    # remove navigator.webdriver and apply stealth tweaks
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
+    )
+    stealth(
+        driver,
+        languages=["en-US", "en"],
+        vendor="Google Inc.",
+        platform="iPhone",
+        webgl_vendor="Apple Inc.",
+        renderer="Apple GPU",
+        fix_hairline=True,
+    )
+    # ================================================================================
+
+    driver.get(url)
+
+    time.sleep(2)
+
+    # Step 1: Wait, check case, capture screenshot
+    case_number = capture_captcha_screenshot(driver, captcha_xpath, raw_captcha_path)
+
+    # Step 2: Crop
     crop_image_vertically(raw_captcha_path, cropped_captcha_path, top_crop_percent, bottom_crop_percent)
 
-    print(f"Raw captcha saved at {raw_captcha_path}")
-    print(f"Cropped captcha saved at {cropped_captcha_path}")
-
-    # Step 3: OCR on top strip for target number
-    print("Extracting target number from top strip...")
+    # Step 3: OCR target number
     target_number = extract_target_number_easyocr(cropped_captcha_path)
-    if target_number:
-        print(f"🎯 Target number detected: {target_number}")
-    else:
-        print("⚠️ No target number detected.")
-        target_number = None
+    print(f"🎯 Target number: {target_number}")
 
-    # Step 4: Split image into 3x3 grid and perform OCR in each cell
-    print("Splitting image into 3x3 grid and performing OCR on each cell...")
+    # Step 4: OCR 9 images
     cells = split_image_grid(cropped_captcha_path, rows=3, cols=3)
     reader = easyocr.Reader(['en'], gpu=False)
-    cell_results = ocr_numbers_from_cells(cells, reader)
+    image_numbers = ocr_numbers_from_cells(cells, reader)
 
-    # Build final result array
-    output_array = [target_number]
-    for idx, numbers in cell_results:
-        if numbers:
-            # Take first detected number in the cell
-            output_array.append(numbers[0][0])
-        else:
-            output_array.append(None)  # or "" if you prefer empty string
-
+    # Step 5: Build final array
+    output_array = [target_number] + image_numbers
     print("✅ Final array:", output_array)
 
+    # Step 6: Compare & click
+    matches = [(num == target_number) if num is not None else False for num in image_numbers]
+    if case_number == 1:
+        click_matching_images(driver, case1_coords, matches)
+    elif case_number == 2:
+        if not case2_coords:
+            print("⚠️ Case 2 coords not provided, skipping clicks.")
+        else:
+            click_matching_images(driver, case2_coords, matches)
+
+    input("\nPress Enter to exit...")
+    driver.quit()
 
 
 if __name__ == "__main__":
     main()
-    input("\nPress Enter to exit...")
-
-
-
-
-
-
-
-
-
-
 
